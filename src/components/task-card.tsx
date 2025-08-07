@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { History } from 'lucide-react';
 import { updateTaskStatus } from '@/lib/firebase';
-import type { Task } from '@/types';
+import type { Task, StatusHistoryEntry } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { StatusHistoryDialog } from './status-history-dialog';
 import { formatDistanceToNow } from 'date-fns';
@@ -18,15 +18,32 @@ export function TaskCard({ task }: { task: Task }) {
   const [isHistoryOpen, setIsHistoryOpen] = React.useState(false);
   const [isUpdating, setIsUpdating] = React.useState(false);
 
-  const currentStatusEntry = task.statusHistory[task.statusHistory.length - 1];
+  // Optimistic state for status
+  const [optimisticStatusHistory, setOptimisticStatusHistory] = React.useState(task.statusHistory);
+  
+  React.useEffect(() => {
+    setOptimisticStatusHistory(task.statusHistory);
+  }, [task.statusHistory]);
+
+
+  const currentStatusEntry = optimisticStatusHistory[optimisticStatusHistory.length - 1];
 
   const handleStatusChange = async (newStatus: string) => {
     if (newStatus === currentStatusEntry.status) return;
+
+    const previousStatusHistory = optimisticStatusHistory;
+    
+    // Optimistically update the UI
+    const newEntry: StatusHistoryEntry = { status: newStatus, timestamp: Date.now() };
+    setOptimisticStatusHistory([...optimisticStatusHistory, newEntry]);
     setIsUpdating(true);
+
     try {
       await updateTaskStatus(task.id, newStatus);
     } catch (error) {
       console.error("Error updating status:", error);
+      // Revert the optimistic update on error
+      setOptimisticStatusHistory(previousStatusHistory);
       toast({
         title: "Error",
         description: "Failed to update status. Please try again.",
@@ -52,7 +69,7 @@ export function TaskCard({ task }: { task: Task }) {
             )}
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <Select onValueChange={handleStatusChange} defaultValue={currentStatusEntry?.status} disabled={isUpdating}>
+            <Select onValueChange={handleStatusChange} value={currentStatusEntry?.status} disabled={isUpdating}>
               <SelectTrigger className="w-full sm:w-[180px] font-body">
                 <SelectValue placeholder="Change status" />
               </SelectTrigger>
@@ -72,7 +89,7 @@ export function TaskCard({ task }: { task: Task }) {
         isOpen={isHistoryOpen}
         onOpenChange={setIsHistoryOpen}
         taskName={task.name}
-        history={task.statusHistory}
+        history={optimisticStatusHistory}
       />
     </>
   );
