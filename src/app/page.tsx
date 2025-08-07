@@ -1,3 +1,4 @@
+
 "use client"
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { onAuthChange, onTasksUpdate, addTask, updateTaskStatus } from '@/lib/firebase';
@@ -53,13 +54,18 @@ function Home() {
 
   // Listen for real-time updates to tasks from Firestore
   useEffect(() => {
+    let unsubscribe: () => void;
     if (user) {
-        const unsubscribe = onTasksUpdate(setTasks, (error) => {
+        unsubscribe = onTasksUpdate(setTasks, (error) => {
             console.error(error);
             setMessage(`Error loading tasks: ${error.message}`);
         });
-        return () => unsubscribe();
     }
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, [user]);
 
   // Effect to update the newStatus state when a task is selected
@@ -381,3 +387,5 @@ function Home() {
 }
 
 export default Home;
+
+    
