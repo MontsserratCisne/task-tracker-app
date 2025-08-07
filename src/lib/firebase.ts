@@ -15,11 +15,9 @@ declare global {
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
-let lastUid: string | null = null;
-let userPromise: Promise<User | null> | null = null;
 
-
-const initializeFirebase = () => {
+const getFirebaseInstances = () => {
+  if (!app) {
     if (typeof window === "undefined") {
       throw new Error("Firebase can only be initialized on the client.");
     }
@@ -35,35 +33,10 @@ const initializeFirebase = () => {
     
     auth = getAuth(app);
     db = getFirestore(app);
-
-    userPromise = new Promise((resolve) => {
-      onIdTokenChanged(auth, async (user) => {
-        if (user) {
-          lastUid = user.uid;
-          resolve(user);
-        } else if (!lastUid) {
-          try {
-            const userCredential = await signInAnonymously(auth);
-            lastUid = userCredential.user.uid;
-            resolve(userCredential.user);
-          } catch (error) {
-            console.error("Anonymous sign-in failed", error);
-            resolve(null);
-          }
-        } else {
-            resolve(null);
-        }
-      });
-    });
-}
-
-
-const getFirebaseInstances = () => {
-  if (!app) {
-    initializeFirebase();
   }
-  return { app, auth, db, userPromise };
+  return { app, auth, db };
 };
+
 
 const tasksCollection = () => {
   const { db, auth } = getFirebaseInstances();
@@ -79,6 +52,7 @@ export const onTasksUpdate = (
   onError: (error: Error) => void
 ): Unsubscribe => {
   try {
+    getFirebaseInstances(); // Ensure firebase is initialized
     const q = query(tasksCollection(), orderBy("createdAt", "desc"));
     return onSnapshot(q, (querySnapshot) => {
       const tasks = querySnapshot.docs.map(doc => ({
@@ -124,11 +98,30 @@ export const updateTaskStatus = async (taskId: string, newStatus: string) => {
   });
 };
 
-export const onAuthChange = (callback: (user: User | null) => void) => {
-  const { userPromise } = getFirebaseInstances();
-  userPromise?.then(user => callback(user));
+let authUnsubscribe: Unsubscribe | null = null;
 
-  return onIdTokenChanged(auth, callback);
+export const onAuthChange = (callback: (user: User | null) => void) => {
+    const { auth } = getFirebaseInstances();
+
+    if (authUnsubscribe) {
+        authUnsubscribe();
+    }
+
+    authUnsubscribe = onIdTokenChanged(auth, async (user) => {
+        if (user) {
+            callback(user);
+        } else {
+            try {
+                const userCredential = await signInAnonymously(auth);
+                callback(userCredential.user);
+            } catch (error) {
+                console.error("Anonymous sign-in failed", error);
+                callback(null);
+            }
+        }
+    });
+
+    return authUnsubscribe;
 };
 
 export const connectToFirebase = () => {
