@@ -62,6 +62,21 @@ function Home() {
     }
   }, [user]);
 
+  // Effect to update the newStatus state when a task is selected
+  useEffect(() => {
+    if (selectedTaskId) {
+      const selectedTask = tasks.find(task => task.id === selectedTaskId);
+      if (selectedTask && selectedTask.statusHistory.length > 0) {
+        const currentStatus = selectedTask.statusHistory[selectedTask.statusHistory.length - 1].status;
+        setNewStatus(currentStatus);
+      } else {
+        setNewStatus('');
+      }
+    } else {
+      setNewStatus('');
+    }
+  }, [selectedTaskId, tasks]);
+
   // Function to calculate IN TEST -> IN PROGRESS regressions
   const calculateRegressions = useCallback((statusHistory) => {
     let regressions = 0;
