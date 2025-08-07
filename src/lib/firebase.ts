@@ -1,6 +1,6 @@
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, type Auth, type User } from "firebase/auth";
+import { getAuth, onIdTokenChanged, signInAnonymously, type Auth, type User } from "firebase/auth";
 import { getFirestore, collection, query, onSnapshot, addDoc, updateDoc, doc, arrayUnion, orderBy, type Firestore, type Unsubscribe } from "firebase/firestore";
 import type { Task, StatusHistoryEntry } from "@/types";
 
@@ -15,11 +15,16 @@ declare global {
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
+let lastUid: string | null = null;
+let userPromise: Promise<User | null> | null = null;
+
 
 const initializeFirebase = () => {
     if (typeof window === "undefined") {
       throw new Error("Firebase can only be initialized on the client.");
     }
+    if (getApps().length) return;
+
     const firebaseConfig = window.__firebase_config;
     if (!firebaseConfig) {
       throw new Error("Firebase config `window.__firebase_config` is missing.");
@@ -28,34 +33,46 @@ const initializeFirebase = () => {
     auth = getAuth(app);
     db = getFirestore(app);
 
-    const token = window.__initial_auth_token;
-    if (token) {
-      signInWithCustomToken(auth, token).catch((error) => {
-        console.error("Custom token sign-in failed, trying anonymous.", error);
-        signInAnonymously(auth);
+    userPromise = new Promise((resolve) => {
+      onIdTokenChanged(auth, async (user) => {
+        if (user) {
+          lastUid = user.uid;
+          resolve(user);
+        } else if (!lastUid) {
+          // Only sign in anonymously if we haven't had a user before.
+          // This prevents re-signing in on sign-out.
+          try {
+            const userCredential = await signInAnonymously(auth);
+            lastUid = userCredential.user.uid;
+            resolve(userCredential.user);
+          } catch (error) {
+            console.error("Anonymous sign-in failed", error);
+            resolve(null);
+          }
+        } else {
+            resolve(null);
+        }
       });
-    } else {
-      signInAnonymously(auth).catch(err => console.error("Anonymous sign-in failed", err));
-    }
+    });
 }
 
 
 const getFirebaseInstances = () => {
   if (!getApps().length) {
     initializeFirebase();
-  } else {
-    app = getApp();
-    auth = getAuth(app);
-    db = getFirestore(app);
   }
-  return { app, auth, db };
+  return { app, auth, db, userPromise };
 };
 
 const tasksCollection = () => {
-  const { db } = getFirebaseInstances();
-  const appId = typeof window !== 'undefined' ? window.__app_id || "default-app" : "default-app";
-  // As per prompt, use a specific collection path
-  return collection(db, `artifacts/${appId}/public/data/tasks`);
+  const { db, auth } = getFirebaseInstances();
+  const uid = auth.currentUser?.uid;
+  if (!uid) {
+      // This should not happen if we wait for auth
+      throw new Error("User not authenticated, cannot get tasks collection.");
+  }
+  // Use a user-specific path for tasks
+  return collection(db, `users/${uid}/tasks`);
 };
 
 export const onTasksUpdate = (
@@ -109,8 +126,13 @@ export const updateTaskStatus = async (taskId: string, newStatus: string) => {
 };
 
 export const onAuthChange = (callback: (user: User | null) => void) => {
-  const { auth } = getFirebaseInstances();
-  return onAuthStateChanged(auth, callback);
+  const { userPromise } = getFirebaseInstances();
+  userPromise?.then(user => callback(user));
+
+  // Also, return an onAuthStateChanged to notify of subsequent changes
+  // although with our current anonymous-only flow, this might not be strictly necessary
+  // but it's good practice.
+  return onIdTokenChanged(getAuth(), callback);
 };
 
 export const connectToFirebase = () => {
