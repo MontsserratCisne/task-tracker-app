@@ -1,7 +1,7 @@
 
 "use client"
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { onAuthChange, onTasksUpdate, addTask, updateTaskStatus } from '@/lib/firebase';
+import { onAuthChange, onTasksUpdate, addTask, updateTaskStatus, updateTaskName } from '@/lib/firebase';
 import type { User } from 'firebase/auth';
 import type { Task } from '@/types';
 
@@ -46,7 +46,7 @@ function Home() {
   // Initialize Firebase and authenticate
   useEffect(() => {
     const unsubscribe = onAuthChange((user) => {
-        setUser(user);
+        setUser(user); // This will trigger the task listener effect below
         setLoading(false);
     });
     return () => unsubscribe();
@@ -56,7 +56,7 @@ function Home() {
   useEffect(() => {
     let unsubscribe: () => void;
     if (user) {
-        unsubscribe = onTasksUpdate(setTasks, (error) => {
+        unsubscribe = onTasksUpdate(user.uid, setTasks, (error) => {
             console.error(error);
             setMessage(`Error loading tasks: ${error.message}`);
         });
@@ -102,13 +102,17 @@ function Home() {
   // Handle adding a new task
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) {
+      setMessage('Error: User not authenticated.');
+      return;
+    }
     if (!newTaskName.trim()) {
       setMessage('Please enter a task name.');
       return;
     }
     setLoading(true);
     try {
-      await addTask(newTaskName.trim());
+      await addTask(user.uid, newTaskName.trim());
       setNewTaskName('');
       setMessage('Task added successfully.');
     } catch (error: any) {
@@ -122,13 +126,17 @@ function Home() {
   // Handle updating a task's status
   const handleUpdateStatus = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) {
+      setMessage('Error: User not authenticated.');
+      return;
+    }
     if (!selectedTaskId || !newStatus) {
       setMessage('Please select a task and a new status.');
       return;
     }
     setLoading(true);
     try {
-        await updateTaskStatus(selectedTaskId, newStatus)
+        await updateTaskStatus(user.uid, selectedTaskId, newStatus)
         setMessage('Task status updated successfully.');
     } catch (error: any) {
       console.error("Error updating status:", error);
@@ -140,15 +148,17 @@ function Home() {
 
   // Handle editing task name
   const handleEditTaskName = async (taskId: string) => {
+    if (!user) {
+      setMessage('Error: User not authenticated.');
+      return;
+    }
     if (!editingTaskName.trim()) {
       setMessage('Task name cannot be empty.');
       return;
     }
     setLoading(true);
     try {
-      // This function needs to be implemented in firebase.ts
-      // For now, it will just be a placeholder
-      console.log("Updating task name for", taskId, "to", editingTaskName.trim());
+      await updateTaskName(user.uid, taskId, editingTaskName.trim());
       setMessage('Task name updated successfully.');
       setEditingTaskId(null); // Exit edit mode
       setEditingTaskName('');
@@ -387,5 +397,3 @@ function Home() {
 }
 
 export default Home;
-
-    

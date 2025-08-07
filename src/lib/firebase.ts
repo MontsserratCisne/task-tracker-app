@@ -1,7 +1,7 @@
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, onIdTokenChanged, signInAnonymously, type Auth, type User } from "firebase/auth";
-import { getFirestore, collection, query, onSnapshot, addDoc, updateDoc, doc, arrayUnion, orderBy, type Firestore, type Unsubscribe } from "firebase/firestore";
+import { getFirestore, collection, query, onSnapshot, addDoc, updateDoc, doc, arrayUnion, orderBy, type Firestore, type Unsubscribe, setDoc } from "firebase/firestore";
 import type { Task, StatusHistoryEntry } from "@/types";
 
 declare global {
@@ -16,13 +16,12 @@ let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
 
-const getFirebaseInstances = () => {
+// This function ensures Firebase is initialized only once.
+const initializeFirebase = () => {
   if (typeof window === 'undefined') {
-    // This case should ideally not be hit on the client-side.
-    // If it is, it means we're trying to use Firebase on the server, which this setup doesn't support for auth/firestore client SDKs.
-    throw new Error("Firebase can only be used on the client.");
+    return; // Do not initialize on the server
   }
-  
+
   if (!getApps().length) {
     const firebaseConfig = window.__firebase_config;
     if (!firebaseConfig) {
@@ -35,14 +34,12 @@ const getFirebaseInstances = () => {
   
   auth = getAuth(app);
   db = getFirestore(app);
-
-  return { app, auth, db };
 };
 
+// Call initialization right away for client-side execution
+initializeFirebase();
 
-const tasksCollection = () => {
-  const { db, auth } = getFirebaseInstances();
-  const uid = auth.currentUser?.uid;
+const tasksCollection = (uid: string) => {
   if (!uid) {
       throw new Error("User not authenticated, cannot get tasks collection.");
   }
@@ -50,12 +47,12 @@ const tasksCollection = () => {
 };
 
 export const onTasksUpdate = (
+  uid: string,
   callback: (tasks: Task[]) => void, 
   onError: (error: Error) => void
 ): Unsubscribe => {
   try {
-    getFirebaseInstances(); // Ensure firebase is initialized
-    const q = query(tasksCollection(), orderBy("createdAt", "desc"));
+    const q = query(tasksCollection(uid), orderBy("createdAt", "desc"));
     return onSnapshot(q, (querySnapshot) => {
       const tasks = querySnapshot.docs.map(doc => ({
         id: doc.id,
@@ -72,9 +69,8 @@ export const onTasksUpdate = (
   }
 };
 
-export const addTask = async (name: string) => {
-  const { auth } = getFirebaseInstances();
-  if (!auth.currentUser) throw new Error("User not authenticated");
+export const addTask = async (uid: string, name: string) => {
+  if (!uid) throw new Error("User not authenticated");
 
   const newTask = {
     name,
@@ -83,14 +79,13 @@ export const addTask = async (name: string) => {
     ],
     createdAt: Date.now()
   };
-  await addDoc(tasksCollection(), newTask);
+  await addDoc(tasksCollection(uid), newTask);
 };
 
-export const updateTaskStatus = async (taskId: string, newStatus: string) => {
-  const { auth } = getFirebaseInstances();
-  if (!auth.currentUser) throw new Error("User not authenticated");
+export const updateTaskStatus = async (uid: string, taskId: string, newStatus: string) => {
+  if (!uid) throw new Error("User not authenticated");
 
-  const taskDocRef = doc(tasksCollection(), taskId);
+  const taskDocRef = doc(tasksCollection(uid), taskId);
   const newStatusEntry: StatusHistoryEntry = {
     status: newStatus,
     timestamp: Date.now()
@@ -100,11 +95,17 @@ export const updateTaskStatus = async (taskId: string, newStatus: string) => {
   });
 };
 
+export const updateTaskName = async (uid: string, taskId: string, newName: string) => {
+  if (!uid) throw new Error("User not authenticated");
+  const taskDocRef = doc(tasksCollection(uid), taskId);
+  await updateDoc(taskDocRef, {
+    name: newName
+  });
+};
+
 let authUnsubscribe: Unsubscribe | null = null;
 
 export const onAuthChange = (callback: (user: User | null) => void) => {
-    const { auth } = getFirebaseInstances();
-
     if (authUnsubscribe) {
         authUnsubscribe();
     }
@@ -124,11 +125,4 @@ export const onAuthChange = (callback: (user: User | null) => void) => {
     });
 
     return authUnsubscribe;
-};
-
-export const connectToFirebase = () => {
-  if (typeof window !== "undefined") {
-    return getFirebaseInstances();
-  }
-  return null;
 };
