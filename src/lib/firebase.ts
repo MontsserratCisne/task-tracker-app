@@ -17,23 +17,25 @@ let auth: Auth;
 let db: Firestore;
 
 const getFirebaseInstances = () => {
-  if (!app) {
-    if (typeof window === "undefined") {
-      throw new Error("Firebase can only be initialized on the client.");
-    }
-    if (getApps().length) {
-      app = getApp();
-    } else {
-        const firebaseConfig = window.__firebase_config;
-        if (!firebaseConfig) {
-          throw new Error("Firebase config `window.__firebase_config` is missing.");
-        }
-        app = initializeApp(firebaseConfig);
-    }
-    
-    auth = getAuth(app);
-    db = getFirestore(app);
+  if (typeof window === 'undefined') {
+    // This case should ideally not be hit on the client-side.
+    // If it is, it means we're trying to use Firebase on the server, which this setup doesn't support for auth/firestore client SDKs.
+    throw new Error("Firebase can only be used on the client.");
   }
+  
+  if (!getApps().length) {
+    const firebaseConfig = window.__firebase_config;
+    if (!firebaseConfig) {
+      throw new Error("Firebase config `window.__firebase_config` is missing. This should be set in layout.tsx.");
+    }
+    app = initializeApp(firebaseConfig);
+  } else {
+    app = getApp();
+  }
+  
+  auth = getAuth(app);
+  db = getFirestore(app);
+
   return { app, auth, db };
 };
 
