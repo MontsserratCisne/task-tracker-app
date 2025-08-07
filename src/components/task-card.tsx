@@ -29,7 +29,7 @@ export function TaskCard({ task }: { task: Task }) {
   const currentStatusEntry = optimisticStatusHistory[optimisticStatusHistory.length - 1];
 
   const handleStatusChange = async (newStatus: string) => {
-    if (newStatus === currentStatusEntry.status) return;
+    if (newStatus === currentStatusEntry?.status) return;
 
     const previousStatusHistory = optimisticStatusHistory;
     
