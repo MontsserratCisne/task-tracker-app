@@ -23,13 +23,16 @@ const initializeFirebase = () => {
     if (typeof window === "undefined") {
       throw new Error("Firebase can only be initialized on the client.");
     }
-    if (getApps().length) return;
-
-    const firebaseConfig = window.__firebase_config;
-    if (!firebaseConfig) {
-      throw new Error("Firebase config `window.__firebase_config` is missing.");
+    if (getApps().length) {
+      app = getApp();
+    } else {
+        const firebaseConfig = window.__firebase_config;
+        if (!firebaseConfig) {
+          throw new Error("Firebase config `window.__firebase_config` is missing.");
+        }
+        app = initializeApp(firebaseConfig);
     }
-    app = initializeApp(firebaseConfig);
+    
     auth = getAuth(app);
     db = getFirestore(app);
 
@@ -39,8 +42,6 @@ const initializeFirebase = () => {
           lastUid = user.uid;
           resolve(user);
         } else if (!lastUid) {
-          // Only sign in anonymously if we haven't had a user before.
-          // This prevents re-signing in on sign-out.
           try {
             const userCredential = await signInAnonymously(auth);
             lastUid = userCredential.user.uid;
@@ -58,7 +59,7 @@ const initializeFirebase = () => {
 
 
 const getFirebaseInstances = () => {
-  if (!getApps().length) {
+  if (!app) {
     initializeFirebase();
   }
   return { app, auth, db, userPromise };
@@ -68,10 +69,8 @@ const tasksCollection = () => {
   const { db, auth } = getFirebaseInstances();
   const uid = auth.currentUser?.uid;
   if (!uid) {
-      // This should not happen if we wait for auth
       throw new Error("User not authenticated, cannot get tasks collection.");
   }
-  // Use a user-specific path for tasks
   return collection(db, `users/${uid}/tasks`);
 };
 
@@ -129,10 +128,7 @@ export const onAuthChange = (callback: (user: User | null) => void) => {
   const { userPromise } = getFirebaseInstances();
   userPromise?.then(user => callback(user));
 
-  // Also, return an onAuthStateChanged to notify of subsequent changes
-  // although with our current anonymous-only flow, this might not be strictly necessary
-  // but it's good practice.
-  return onIdTokenChanged(getAuth(), callback);
+  return onIdTokenChanged(auth, callback);
 };
 
 export const connectToFirebase = () => {
