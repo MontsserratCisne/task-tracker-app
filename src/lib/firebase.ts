@@ -1,3 +1,4 @@
+
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, type Auth, type User } from "firebase/auth";
 import { getFirestore, collection, query, onSnapshot, addDoc, updateDoc, doc, arrayUnion, orderBy, type Firestore, type Unsubscribe } from "firebase/firestore";
@@ -15,8 +16,7 @@ let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
 
-const getFirebaseInstances = () => {
-  if (!getApps().length) {
+const initializeFirebase = () => {
     if (typeof window === "undefined") {
       throw new Error("Firebase can only be initialized on the client.");
     }
@@ -37,6 +37,12 @@ const getFirebaseInstances = () => {
     } else {
       signInAnonymously(auth).catch(err => console.error("Anonymous sign-in failed", err));
     }
+}
+
+
+const getFirebaseInstances = () => {
+  if (!getApps().length) {
+    initializeFirebase();
   } else {
     app = getApp();
     auth = getAuth(app);
