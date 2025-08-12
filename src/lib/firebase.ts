@@ -1,4 +1,3 @@
-
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, onIdTokenChanged, signInAnonymously, type Auth, type User } from "firebase/auth";
 import { getFirestore, collection, query, onSnapshot, addDoc, updateDoc, doc, arrayUnion, orderBy, type Firestore, type Unsubscribe, setDoc } from "firebase/firestore";
