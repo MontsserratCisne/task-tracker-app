@@ -14,6 +14,9 @@ concurrency:
   group: "pages"
   cancel-in-progress: true
 
+env:
+  NEXT_PUBLIC_BASE_PATH: /task-tracker-app
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -32,8 +35,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Build with Next.js
-        run: npm run build
-      - name: Static HTML export with Next.js
         run: npm run build
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
