@@ -84,20 +84,28 @@ function Home() {
   }, [selectedTaskId, tasks]);
 
   // Function to calculate IN TEST -> IN PROGRESS regressions
-  const calculateRegressions = useCallback((statusHistory) => {
-    let regressions = 0;
-    if (!statusHistory || statusHistory.length < 2) {
-      return 0;
-    }
-    for (let i = 1; i < statusHistory.length; i++) {
-      const previousStatus = statusHistory[i - 1].status;
-      const currentStatus = statusHistory[i].status;
-      if (previousStatus === 'IN TEST' && currentStatus === 'IN PROGRESS') {
-        regressions++;
+  interface StatusHistoryEntry {
+    status: string;
+    timestamp: number;
+  }
+
+  const calculateRegressions = useCallback(
+    (statusHistory: StatusHistoryEntry[]): number => {
+      let regressions = 0;
+      if (!statusHistory || statusHistory.length < 2) {
+        return 0;
       }
-    }
-    return regressions;
-  }, []);
+      for (let i = 1; i < statusHistory.length; i++) {
+        const previousStatus = statusHistory[i - 1].status;
+        const currentStatus = statusHistory[i].status;
+        if (previousStatus === 'IN TEST' && currentStatus === 'IN PROGRESS') {
+          regressions++;
+        }
+      }
+      return regressions;
+    },
+    []
+  );
 
   // Handle adding a new task
   const handleAddTask = async (e: React.FormEvent) => {
