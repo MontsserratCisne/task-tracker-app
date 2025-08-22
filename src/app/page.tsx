@@ -6,6 +6,12 @@ import type { User } from 'firebase/auth';
 import type { Task } from '@/types';
 
 
+// Function to calculate IN TEST -> IN PROGRESS regressions
+interface StatusEntry {
+  status: string;
+  timestamp: number;
+}
+
 // Define possible task statuses
 const STATUSES = [
   'TO DO',
@@ -83,29 +89,20 @@ function Home() {
     }
   }, [selectedTaskId, tasks]);
 
-  // Function to calculate IN TEST -> IN PROGRESS regressions
-  interface StatusHistoryEntry {
-    status: string;
-    timestamp: number;
-  }
-
-  const calculateRegressions = useCallback(
-    (statusHistory: StatusHistoryEntry[]): number => {
-      let regressions = 0;
-      if (!statusHistory || statusHistory.length < 2) {
-        return 0;
+  const calculateRegressions = useCallback((statusHistory: StatusEntry[]): number => {
+    let regressions = 0;
+    if (!statusHistory || statusHistory.length < 2) {
+      return 0;
+    }
+    for (let i = 1; i < statusHistory.length; i++) {
+      const previousStatus = statusHistory[i - 1].status;
+      const currentStatus = statusHistory[i].status;
+      if (previousStatus === 'IN TEST' && currentStatus === 'IN PROGRESS') {
+        regressions++;
       }
-      for (let i = 1; i < statusHistory.length; i++) {
-        const previousStatus = statusHistory[i - 1].status;
-        const currentStatus = statusHistory[i].status;
-        if (previousStatus === 'IN TEST' && currentStatus === 'IN PROGRESS') {
-          regressions++;
-        }
-      }
-      return regressions;
-    },
-    []
-  );
+    }
+    return regressions;
+  }, []);
 
   // Handle adding a new task
   const handleAddTask = async (e: React.FormEvent) => {
@@ -333,7 +330,7 @@ function Home() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                           task.statusHistory && task.statusHistory.length > 0
-                            ? STATUS_COLOR_MAP[task.statusHistory[task.statusHistory.length - 1].status] || 'bg-gray-100 text-gray-800'
+                            ? STATUS_COLOR_MAP[task.statusHistory[task.statusHistory.length - 1].status as keyof typeof STATUS_COLOR_MAP] || 'bg-gray-100 text-gray-800'
                             : 'bg-gray-100 text-gray-800'
                         }`}>
                           {task.statusHistory && task.statusHistory.length > 0
@@ -358,7 +355,7 @@ function Home() {
                             .map((entry, index, filteredArr) => (
                             <div key={index} className="flex items-center gap-x-1">
                               <div className="flex flex-col items-center">
-                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${STATUS_COLOR_MAP[entry.status] || 'bg-gray-100 text-gray-800'}`}>
+                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${STATUS_COLOR_MAP[entry.status as keyof typeof STATUS_COLOR_MAP] || 'bg-gray-100 text-gray-800'}`}>
                                   {entry.status}
                                 </span>
                                 <span className="text-gray-500 text-xs whitespace-nowrap mt-0.5">
